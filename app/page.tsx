@@ -14,8 +14,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('timer')
 
   // ── Timer state ──
-  const [minutes, setMinutes] = useState(5)
-  const [seconds, setSeconds] = useState(0)
+  const [minutes, setMinutes] = useState(0)
+  const [seconds, setSeconds] = useState(30)
   const [timeLeft, setTimeLeft] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerComplete, setTimerComplete] = useState(false)
@@ -206,17 +206,17 @@ export default function App() {
             {timerIdle && (
               <div className="inputs-row">
                 <div className="input-group">
-                  <label className="input-label">MIN</label>
                   <input type="number" min="0" max="99" value={minutes}
                     onChange={e => setMinutes(Math.max(0, parseInt(e.target.value) || 0))}
                     className="time-input" />
+                  <label className="input-label">MINUTES</label>
                 </div>
                 <div className="input-divider">:</div>
                 <div className="input-group">
-                  <label className="input-label">SEC</label>
                   <input type="number" min="0" max="59" value={seconds}
                     onChange={e => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
                     className="time-input" />
+                  <label className="input-label">SECONDS</label>
                 </div>
               </div>
             )}
