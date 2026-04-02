@@ -1,75 +1,36 @@
-# Modern Timer ⏰
+# Countdown Timer
 
-A sleek, modern countdown timer application built with Next.js and Tailwind CSS featuring glassmorphism design.
+A precision countdown timer built with Next.js. Clean, dark interface designed around clarity and focus — no clutter, just the time you need.
 
 ## Features
 
-- ⏱️ Customizable countdown timer (minutes and seconds)
-- 🔔 Browser notifications when timer completes
-- 🔊 Sound alert on completion
-- 📱 Mobile-friendly responsive design
-- ✨ Glass effect UI with smooth animations
-- ⏸️ Start, pause, and reset functionality
+- Set any duration in minutes and seconds
+- Animated ring progress display with watchface-style tick marks
+- Visual and audio alert on completion
+- Optional browser push notifications
+- Pause, resume, and reset controls
+- Fully responsive — works on mobile and desktop
 
 ## Tech Stack
 
-- **Next.js 14** - React framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Browser Notifications API** - Desktop alerts
+- **Next.js** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- **JetBrains Mono** + **Barlow** (Google Fonts)
 
 ## Getting Started
 
-### Prerequisites
-- Node.js 18+ 
-- npm or yarn
-
-### Installation
-
-1. Clone the repository
-```bash
-git clone <your-repo-url>
-cd Timer\ Clock
-```
-
-2. Install dependencies
 ```bash
 npm install
-```
-
-3. Run the development server
-```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Deployment
 
-### Deploy on Vercel
+Deployed on **Vercel** via GitHub auto-deploy. Push to `main` to ship.
 
-1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Import your GitHub repository
-4. Vercel will automatically detect Next.js and deploy
+---
 
-### Manual Deployment
-```bash
-npm run build
-npm start
-```
-
-## Usage
-
-1. Set your desired minutes and seconds
-2. Click "Enable Notifications" to get alerts when timer finishes
-3. Click "▶️ Start Timer" to begin countdown
-4. Use "⏸️ Pause Timer" to pause or "🔄 Reset Timer" to reset
-
-## Author
-
-**Umar J** - All rights reserved © 2024
-
-## License
-
-This project is private and proprietary.
+Built by [Umar J](https://github.com/umarj-max)
