@@ -13,16 +13,21 @@ interface Lap {
 export default function App() {
   const [tab, setTab] = useState<Tab>('timer')
 
-  // ── Timer state ──
+  // Timer state
   const [minutes, setMinutes] = useState(0)
   const [seconds, setSeconds] = useState(30)
   const [timeLeft, setTimeLeft] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerComplete, setTimerComplete] = useState(false)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Stopwatch state ──
+  // Alert state
+  const [notifEnabled, setNotifEnabled] = useState(false)
+  const [vibrateEnabled, setVibrateEnabled] = useState(false)
+  const [tooltip, setTooltip] = useState('')
+  const tooltipTimer = useRef<NodeJS.Timeout | null>(null)
+
+  // Stopwatch state
   const [elapsed, setElapsed] = useState(0)
   const [swRunning, setSwRunning] = useState(false)
   const [laps, setLaps] = useState<Lap[]>([])
@@ -30,13 +35,18 @@ export default function App() {
   const startTimeRef = useRef<number>(0)
   const accumulatedRef = useRef<number>(0)
 
-  // ── Timer effects ──
+  // Detect capabilities
+  const canVibrate = typeof navigator !== 'undefined' && 'vibrate' in navigator
+  const canNotify = typeof window !== 'undefined' && 'Notification' in window
+  const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent)
+
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      setNotificationsEnabled(true)
-    }
+    if (canNotify && Notification.permission === 'granted') setNotifEnabled(true)
+    // Auto-enable vibration on mobile if available
+    if (canVibrate && !isIOS) setVibrateEnabled(true)
   }, [])
 
+  // Timer interval
   useEffect(() => {
     if (timerRunning && timeLeft > 0) {
       setTimerComplete(false)
@@ -56,7 +66,7 @@ export default function App() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [timerRunning, timeLeft])
 
-  // ── Stopwatch effects ──
+  // Stopwatch interval
   useEffect(() => {
     if (swRunning) {
       startTimeRef.current = Date.now()
@@ -69,26 +79,65 @@ export default function App() {
     return () => { if (swRef.current) clearInterval(swRef.current) }
   }, [swRunning])
 
-  // ── Timer handlers ──
+  const showTooltip = (msg: string) => {
+    setTooltip(msg)
+    if (tooltipTimer.current) clearTimeout(tooltipTimer.current)
+    tooltipTimer.current = setTimeout(() => setTooltip(''), 3000)
+  }
+
   const handleTimerComplete = () => {
     setTimerComplete(true)
+    // Audio
     const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT')
     audio.play().catch(() => {})
-    if (notificationsEnabled && Notification.permission === 'granted') {
+    // Vibrate (Android)
+    if (vibrateEnabled && canVibrate) {
+      navigator.vibrate([300, 100, 300, 100, 500])
+    }
+    // Desktop notification
+    if (notifEnabled && canNotify && Notification.permission === 'granted') {
       new Notification('Timer Complete', { body: 'Your countdown has finished.' })
     }
   }
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      if (notificationsEnabled) { setNotificationsEnabled(false); return }
+  const handleAlertButton = async () => {
+    // iOS — explain limitation
+    if (isIOS) {
+      showTooltip('On iOS, add this page to Home Screen to enable alerts.')
+      return
+    }
+    // Android / mobile with vibration but no notifications
+    if (canVibrate && !canNotify) {
+      const next = !vibrateEnabled
+      setVibrateEnabled(next)
+      if (next) navigator.vibrate(200)
+      showTooltip(next ? 'Vibration alerts on.' : 'Vibration alerts off.')
+      return
+    }
+    // Desktop / capable browser — use notifications + vibration
+    if (canNotify) {
+      if (notifEnabled) {
+        setNotifEnabled(false)
+        setVibrateEnabled(false)
+        return
+      }
       const permission = await Notification.requestPermission()
-      setNotificationsEnabled(permission === 'granted')
+      if (permission === 'granted') {
+        setNotifEnabled(true)
+        if (canVibrate) setVibrateEnabled(true)
+      } else {
+        showTooltip('Permission denied. Check browser settings.')
+      }
     } else {
-      alert('Notifications not supported in this browser')
+      showTooltip('Alerts not supported in this browser.')
     }
   }
 
+  // Derived alert status
+  const alertsOn = notifEnabled || vibrateEnabled
+  const alertLabel = isIOS ? 'IOS LIMIT' : alertsOn ? 'ALERTS ON' : 'ALERTS OFF'
+
+  // Timer helpers
   const startTimer = () => {
     if (timeLeft === 0) setTimeLeft(minutes * 60 + seconds)
     setTimerComplete(false)
@@ -97,7 +146,7 @@ export default function App() {
   const pauseTimer = () => setTimerRunning(false)
   const resetTimer = () => { setTimerRunning(false); setTimeLeft(0); setTimerComplete(false) }
 
-  // ── Stopwatch handlers ──
+  // Stopwatch helpers
   const startSw = () => setSwRunning(true)
   const pauseSw = () => {
     accumulatedRef.current += Date.now() - startTimeRef.current
@@ -114,23 +163,16 @@ export default function App() {
     setLaps(prev => [...prev, { id: prev.length + 1, total: elapsed, split: elapsed - prevTotal }])
   }
 
-  // ── Format helpers ──
+  // Format helpers
   const formatTimer = (totalSeconds: number) => ({
     mins: Math.floor(totalSeconds / 60).toString().padStart(2, '0'),
     secs: (totalSeconds % 60).toString().padStart(2, '0'),
   })
-
-  const formatSw = (ms: number) => {
-    const mins = Math.floor(ms / 60000)
-    const secs = Math.floor((ms % 60000) / 1000)
-    const centis = Math.floor((ms % 1000) / 10)
-    return {
-      mins: mins.toString().padStart(2, '0'),
-      secs: secs.toString().padStart(2, '0'),
-      centis: centis.toString().padStart(2, '0'),
-    }
-  }
-
+  const formatSw = (ms: number) => ({
+    mins: Math.floor(ms / 60000).toString().padStart(2, '0'),
+    secs: Math.floor((ms % 60000) / 1000).toString().padStart(2, '0'),
+    centis: Math.floor((ms % 1000) / 10).toString().padStart(2, '0'),
+  })
   const formatSwShort = (ms: number) => {
     const t = formatSw(ms)
     return `${t.mins}:${t.secs}.${t.centis}`
@@ -142,7 +184,6 @@ export default function App() {
   const circumference = 2 * Math.PI * 54
   const dashOffset = circumference * (1 - progress / 100)
   const timerIdle = !timerRunning && timeLeft === 0
-
   const sw = formatSw(elapsed)
   const fastestLap = laps.length > 1 ? Math.min(...laps.map(l => l.split)) : null
   const slowestLap = laps.length > 1 ? Math.max(...laps.map(l => l.split)) : null
@@ -151,26 +192,28 @@ export default function App() {
     <div className="root">
       <div className="card">
 
-        {/* Tab switcher */}
+        {/* Tabs */}
         <div className="tabs">
-          <button className={`tab ${tab === 'timer' ? 'tab-active' : ''}`} onClick={() => setTab('timer')}>
-            TIMER
-          </button>
-          <button className={`tab ${tab === 'stopwatch' ? 'tab-active' : ''}`} onClick={() => setTab('stopwatch')}>
-            STOPWATCH
-          </button>
+          <button className={`tab ${tab === 'timer' ? 'tab-active' : ''}`} onClick={() => setTab('timer')}>TIMER</button>
+          <button className={`tab ${tab === 'stopwatch' ? 'tab-active' : ''}`} onClick={() => setTab('stopwatch')}>STOPWATCH</button>
           <div className={`tab-indicator ${tab === 'stopwatch' ? 'tab-indicator-right' : ''}`} />
         </div>
 
-        {/* ── TIMER PANEL ── */}
+        {/* TIMER PANEL */}
         {tab === 'timer' && (
           <>
             <div className="panel-header">
               <span className="panel-label">COUNTDOWN</span>
-              <button onClick={requestNotificationPermission} className={`notif-btn ${notificationsEnabled ? 'notif-on' : ''}`}>
-                <span className="notif-dot" />
-                {notificationsEnabled ? 'ALERTS ON' : 'ALERTS OFF'}
-              </button>
+              <div className="alert-wrap">
+                <button
+                  onClick={handleAlertButton}
+                  className={`notif-btn ${alertsOn ? 'notif-on' : ''} ${isIOS ? 'notif-ios' : ''}`}
+                >
+                  <span className="notif-dot" />
+                  {alertLabel}
+                </button>
+                {tooltip && <div className="tooltip">{tooltip}</div>}
+              </div>
             </div>
 
             <div className="ring-container">
@@ -241,7 +284,7 @@ export default function App() {
           </>
         )}
 
-        {/* ── STOPWATCH PANEL ── */}
+        {/* STOPWATCH PANEL */}
         {tab === 'stopwatch' && (
           <>
             <div className="panel-header">
@@ -286,9 +329,7 @@ export default function App() {
             {laps.length > 0 && (
               <div className="lap-list">
                 <div className="lap-list-header">
-                  <span>#</span>
-                  <span>SPLIT</span>
-                  <span>TOTAL</span>
+                  <span>#</span><span>SPLIT</span><span>TOTAL</span>
                 </div>
                 <div className="lap-rows">
                   {[...laps].reverse().map(lap => {
@@ -315,53 +356,37 @@ export default function App() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .root {
-          min-height: 100vh;
-          background: #0a0a0a;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 24px;
-          padding-bottom: 72px;
+          min-height: 100vh; background: #0a0a0a;
+          display: flex; align-items: center; justify-content: center;
+          padding: 24px; padding-bottom: 72px;
           font-family: 'Barlow', sans-serif;
           background-image:
             radial-gradient(circle at 20% 20%, rgba(255,160,60,0.04) 0%, transparent 50%),
             radial-gradient(circle at 80% 80%, rgba(255,100,30,0.03) 0%, transparent 50%);
         }
-
         .card {
-          width: 100%;
-          max-width: 380px;
-          background: #111;
-          border: 1px solid #222;
-          border-radius: 4px;
-          padding: 0 0 28px;
-          display: flex;
-          flex-direction: column;
+          width: 100%; max-width: 380px; background: #111;
+          border: 1px solid #222; border-radius: 4px; padding: 0 0 28px;
+          display: flex; flex-direction: column;
           box-shadow: 0 0 0 1px #1a1a1a, 0 24px 64px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.04);
           overflow: hidden;
         }
 
         .tabs {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          position: relative;
-          border-bottom: 1px solid #1e1e1e;
+          display: grid; grid-template-columns: 1fr 1fr;
+          position: relative; border-bottom: 1px solid #1e1e1e;
         }
         .tab {
-          background: none; border: none;
-          padding: 16px;
+          background: none; border: none; padding: 16px;
           font-family: 'JetBrains Mono', monospace;
           font-size: 10px; font-weight: 500; letter-spacing: 0.2em;
-          color: #444; cursor: pointer; transition: color 0.2s;
-          position: relative; z-index: 1;
+          color: #444; cursor: pointer; transition: color 0.2s; position: relative; z-index: 1;
         }
         .tab:hover { color: #666; }
         .tab-active { color: #f59e0b; }
         .tab-indicator {
-          position: absolute; bottom: 0; left: 0;
-          width: 50%; height: 1px;
-          background: #f59e0b;
-          transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
+          position: absolute; bottom: 0; left: 0; width: 50%; height: 1px;
+          background: #f59e0b; transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
           box-shadow: 0 0 8px rgba(245,158,11,0.5);
         }
         .tab-indicator-right { left: 50%; }
@@ -375,10 +400,11 @@ export default function App() {
           font-size: 10px; font-weight: 500; letter-spacing: 0.25em; color: #444;
         }
         .lap-count {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 9px; letter-spacing: 0.2em; color: #555;
+          font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: #555;
         }
 
+        /* Alert button */
+        .alert-wrap { position: relative; }
         .notif-btn {
           display: flex; align-items: center; gap: 6px;
           background: none; border: 1px solid #222; border-radius: 2px;
@@ -389,13 +415,27 @@ export default function App() {
         }
         .notif-btn:hover { border-color: #333; color: #666; }
         .notif-btn.notif-on { border-color: #f59e0b44; color: #f59e0b; }
+        .notif-btn.notif-ios { border-color: #374151; color: #4b5563; cursor: default; }
         .notif-dot { width: 5px; height: 5px; border-radius: 50%; background: #333; transition: background 0.2s; }
         .notif-btn.notif-on .notif-dot { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
-
-        .ring-container {
-          position: relative; width: 200px; height: 200px;
-          margin: 20px auto 0;
+        .tooltip {
+          position: absolute; right: 0; top: calc(100% + 8px);
+          background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px;
+          padding: 7px 10px; white-space: nowrap;
+          font-family: 'JetBrains Mono', monospace; font-size: 9px;
+          color: #aaa; letter-spacing: 0.05em; z-index: 10;
+          animation: fade-in 0.15s ease;
         }
+        .tooltip::before {
+          content: ''; position: absolute; top: -5px; right: 14px;
+          width: 8px; height: 8px; background: #1c1c1c;
+          border-left: 1px solid #2a2a2a; border-top: 1px solid #2a2a2a;
+          transform: rotate(45deg);
+        }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Ring */
+        .ring-container { position: relative; width: 200px; height: 200px; margin: 20px auto 0; }
         .ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
         .ring-track { fill: none; stroke: #1c1c1c; stroke-width: 3; }
         .ring-progress {
@@ -411,14 +451,12 @@ export default function App() {
           display: flex; align-items: center; justify-content: center; gap: 2px;
         }
         .time-digits {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 42px; font-weight: 300; color: #e8e8e8;
-          line-height: 1; transition: color 0.4s; letter-spacing: -0.02em;
+          font-family: 'JetBrains Mono', monospace; font-size: 42px; font-weight: 300;
+          color: #e8e8e8; line-height: 1; transition: color 0.4s; letter-spacing: -0.02em;
         }
         .time-colon {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 36px; font-weight: 300; color: #555;
-          line-height: 1; margin-bottom: 4px;
+          font-family: 'JetBrains Mono', monospace; font-size: 36px; font-weight: 300;
+          color: #555; line-height: 1; margin-bottom: 4px;
         }
         .time-running .time-digits { color: #fde68a; }
         .time-complete .time-digits { color: #86efac; }
@@ -430,81 +468,67 @@ export default function App() {
         }
         @keyframes pulse-label { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
+        /* Inputs */
         .inputs-row {
           display: flex; align-items: flex-end; justify-content: center; gap: 12px;
           padding: 20px 28px 0;
         }
         .input-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .input-label {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 9px; letter-spacing: 0.2em; color: #444; font-weight: 500;
+          font-family: 'JetBrains Mono', monospace; font-size: 9px;
+          letter-spacing: 0.2em; color: #444; font-weight: 500;
         }
         .time-input {
-          width: 80px; background: #0e0e0e;
-          border: 1px solid #222; border-radius: 2px;
+          width: 80px; background: #0e0e0e; border: 1px solid #222; border-radius: 2px;
           padding: 10px 8px; color: #ddd;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 22px; font-weight: 300; text-align: center;
-          outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+          font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 300;
+          text-align: center; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
           -moz-appearance: textfield;
         }
-        .time-input::-webkit-inner-spin-button,
-        .time-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .time-input::-webkit-inner-spin-button, .time-input::-webkit-outer-spin-button { -webkit-appearance: none; }
         .time-input:focus { border-color: #f59e0b55; box-shadow: 0 0 0 3px rgba(245,158,11,0.07); }
         .input-divider {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 24px; color: #333; padding-bottom: 6px; font-weight: 300;
+          font-family: 'JetBrains Mono', monospace; font-size: 24px; color: #333;
+          padding-bottom: 22px; font-weight: 300;
         }
 
-        .sw-display-wrap {
-          position: relative; margin: 24px 0 0; width: 100%;
-        }
+        /* Stopwatch */
+        .sw-display-wrap { position: relative; margin: 24px 0 0; width: 100%; }
         .sw-display {
           display: flex; align-items: baseline; justify-content: center;
-          padding: 28px 32px;
-          background: #0d0d0d;
-          border-top: 1px solid #1c1c1c;
-          border-bottom: 1px solid #1c1c1c;
+          padding: 28px 32px; background: #0d0d0d;
+          border-top: 1px solid #1c1c1c; border-bottom: 1px solid #1c1c1c;
           transition: border-color 0.3s;
         }
         .sw-display.sw-running { border-color: #f59e0b22; }
         .sw-main { display: flex; align-items: baseline; gap: 1px; }
         .sw-digits {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 52px; font-weight: 300; color: #e8e8e8;
-          line-height: 1; letter-spacing: -0.03em; transition: color 0.3s;
+          font-family: 'JetBrains Mono', monospace; font-size: 52px; font-weight: 300;
+          color: #e8e8e8; line-height: 1; letter-spacing: -0.03em; transition: color 0.3s;
         }
         .sw-running .sw-digits { color: #fde68a; }
         .sw-colon {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 44px; font-weight: 300; color: #555;
-          line-height: 1; margin: 0 1px 3px;
+          font-family: 'JetBrains Mono', monospace; font-size: 44px; font-weight: 300;
+          color: #555; line-height: 1; margin: 0 1px 3px;
         }
         .sw-centis {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 28px; font-weight: 300; color: #555;
-          line-height: 1; margin-bottom: 2px; margin-left: 3px; transition: color 0.3s;
+          font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 300;
+          color: #555; line-height: 1; margin-bottom: 2px; margin-left: 3px; transition: color 0.3s;
         }
         .sw-running .sw-centis { color: #f59e0b88; }
         .sw-pulse-ring {
-          position: absolute; inset: 0;
-          border: 1px solid #f59e0b15;
-          pointer-events: none;
-          animation: sw-pulse 2s ease-in-out infinite;
+          position: absolute; inset: 0; border: 1px solid #f59e0b15;
+          pointer-events: none; animation: sw-pulse 2s ease-in-out infinite;
         }
         @keyframes sw-pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
-        .controls-row {
-          display: flex; gap: 10px;
-          padding: 20px 28px 0;
-        }
+        /* Controls */
+        .controls-row { display: flex; gap: 10px; padding: 20px 28px 0; }
         .btn {
           flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-          padding: 13px 12px; border: 1px solid transparent; border-radius: 2px;
-          cursor: pointer;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
-          transition: all 0.15s;
+          padding: 13px 12px; border: 1px solid transparent; border-radius: 2px; cursor: pointer;
+          font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+          letter-spacing: 0.12em; transition: all 0.15s;
         }
         .btn:active { transform: scale(0.98); }
         .btn:disabled { opacity: 0.25; cursor: not-allowed; }
@@ -514,22 +538,15 @@ export default function App() {
         .btn-pause:hover { background: #3b82f622; border-color: #3b82f688; }
         .btn-lap { background: #a855f711; border-color: #a855f744; color: #c084fc; }
         .btn-lap:hover:not(:disabled) { background: #a855f722; border-color: #a855f788; }
-        .btn-reset {
-          background: transparent; border-color: #222; color: #555;
-          flex: 0 0 auto; padding: 13px 16px;
-        }
+        .btn-reset { background: transparent; border-color: #222; color: #555; flex: 0 0 auto; padding: 13px 16px; }
         .btn-reset:hover { border-color: #333; color: #888; }
 
-        .lap-list {
-          margin: 16px 28px 0;
-          border: 1px solid #1c1c1c; border-radius: 2px; overflow: hidden;
-        }
+        /* Laps */
+        .lap-list { margin: 16px 28px 0; border: 1px solid #1c1c1c; border-radius: 2px; overflow: hidden; }
         .lap-list-header {
-          display: grid; grid-template-columns: 32px 1fr 1fr;
-          padding: 8px 14px;
+          display: grid; grid-template-columns: 32px 1fr 1fr; padding: 8px 14px;
           background: #0d0d0d; border-bottom: 1px solid #1c1c1c;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 9px; letter-spacing: 0.2em; color: #444;
+          font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: #444;
         }
         .lap-rows { max-height: 180px; overflow-y: auto; }
         .lap-rows::-webkit-scrollbar { width: 3px; }
