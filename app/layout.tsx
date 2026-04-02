@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Modern Timer',
-  description: 'A sleek, modern timer application',
+  title: 'Countdown Timer',
+  description: 'Precision countdown timer by Umar J.',
 }
 
 export default function RootLayout({
@@ -14,8 +14,20 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <main>{children}</main>
-        <footer className="fixed bottom-0 w-full bg-white/10 backdrop-blur-lg border-t border-white/20 text-white text-center py-3 px-4 text-xs sm:text-sm">
-          © 2024 Umar J. All rights reserved.
+        <footer style={{
+          position: 'fixed',
+          bottom: 0,
+          width: '100%',
+          borderTop: '1px solid #1a1a1a',
+          background: '#0a0a0a',
+          color: '#333',
+          textAlign: 'center',
+          padding: '10px 16px',
+          fontSize: '10px',
+          fontFamily: "'JetBrains Mono', monospace",
+          letterSpacing: '0.2em',
+        }}>
+          © 2024 UMAR J. ALL RIGHTS RESERVED.
         </footer>
       </body>
     </html>
