@@ -106,15 +106,20 @@ export default function App() {
       showTooltip('On iOS, add this page to Home Screen to enable alerts.')
       return
     }
-    // Android / mobile with vibration but no notifications
-    if (canVibrate && !canNotify) {
-      const next = !vibrateEnabled
-      setVibrateEnabled(next)
-      if (next) navigator.vibrate(200)
-      showTooltip(next ? 'Vibration alerts on.' : 'Vibration alerts off.')
+    // If vibration is the active alert method — toggle it off directly
+    if (canVibrate && vibrateEnabled && !notifEnabled) {
+      setVibrateEnabled(false)
+      showTooltip('Vibration alerts off.')
       return
     }
-    // Desktop / capable browser — use notifications + vibration
+    // Android Chrome: canNotify is true but permission will be denied — use vibration only
+    if (canVibrate && !vibrateEnabled && !notifEnabled) {
+      setVibrateEnabled(true)
+      navigator.vibrate(200)
+      showTooltip('Vibration alerts on.')
+      return
+    }
+    // Desktop — notifications path
     if (canNotify) {
       if (notifEnabled) {
         setNotifEnabled(false)
@@ -126,7 +131,14 @@ export default function App() {
         setNotifEnabled(true)
         if (canVibrate) setVibrateEnabled(true)
       } else {
-        showTooltip('Permission denied. Check browser settings.')
+        // Fallback to vibration if available
+        if (canVibrate) {
+          setVibrateEnabled(true)
+          navigator.vibrate(200)
+          showTooltip('Vibration alerts on.')
+        } else {
+          showTooltip('Permission denied. Check browser settings.')
+        }
       }
     } else {
       showTooltip('Alerts not supported in this browser.')
